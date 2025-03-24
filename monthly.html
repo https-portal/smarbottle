@@ -1,0 +1,168 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Smart Bottle Monthly Dashboard</title>
+
+    <!-- ✅ Firebase -->
+    <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-database-compat.js"></script>
+
+    <!-- ✅ Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+
+    <!-- ✅ Chart.js -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+    <!-- ✅ Animation Library (GSAP) -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.2/gsap.min.js"></script>
+
+    <style>
+        /* 🌟 Light-Themed Glassmorphism */
+        body {
+            background: linear-gradient(135deg, #E0F7FF, #FFFFFF);
+            color: #333;
+            font-family: 'Poppins', sans-serif;
+        }
+        .glass {
+            background: rgba(255, 255, 255, 0.5);
+            backdrop-filter: blur(15px);
+            border-radius: 20px;
+            border: 1px solid rgba(255, 255, 255, 0.3);
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.1);
+        }
+        .glow-btn {
+            background: linear-gradient(45deg, #4F9DDE, #6BC7F3);
+            color: white;
+            box-shadow: 0 4px 15px rgba(79, 157, 222, 0.6);
+            transition: all 0.3s ease-in-out;
+        }
+        .glow-btn:hover {
+            transform: translateY(-3px) scale(1.05);
+            box-shadow: 0 6px 20px rgba(79, 157, 222, 0.9);
+        }
+        .fade-in {
+            opacity: 0;
+            transform: translateY(20px);
+        }
+    </style>
+</head>
+<body class="flex items-center justify-center min-h-screen p-4">
+
+    <!-- 🌟 Main Container -->
+    <div class="glass p-8 w-full max-w-3xl fade-in">
+        <h1 class="text-4xl font-bold text-center text-gray-800 mb-6 drop-shadow-lg">📊 Monthly Smart Bottle Dashboard</h1>
+
+        <!-- 🎯 Filters Section -->
+        <div class="flex flex-col sm:flex-row gap-4 justify-center items-center">
+            <!-- 📅 Month Picker -->
+            <div class="flex flex-col">
+                <label for="monthPicker" class="text-gray-700 font-semibold">📅 Select Month:</label>
+                <input type="month" id="monthPicker" class="border border-gray-300 rounded-lg p-3 bg-white shadow-md focus:ring-2 focus:ring-blue-400 focus:outline-none transition">
+            </div>
+
+            <!-- 💧 Liquid Type Dropdown -->
+            <div class="flex flex-col">
+                <label for="liquidType" class="text-gray-700 font-semibold">💧 Liquid Type:</label>
+                <select id="liquidType" class="border border-gray-300 rounded-lg p-3 bg-white shadow-md focus:ring-2 focus:ring-blue-400 focus:outline-none transition">
+                    <option value="All">All</option>
+                    <option value="Water">Water</option>
+                    <option value="Other Liquid">Other Liquid</option>
+                </select>
+            </div>
+        </div>
+
+        <!-- 🚀 Fetch Data Button -->
+        <div class="mt-6 text-center">
+            <button onclick="fetchMonthlyData()" class="glow-btn px-6 py-3 rounded-lg text-lg font-semibold">
+                🚀 Fetch Data
+            </button>
+        </div>
+
+        <!-- 📊 Chart Container -->
+        <div class="mt-6 p-4 bg-white rounded-2xl shadow-lg fade-in">
+            <canvas id="myChart"></canvas>
+        </div>
+    </div>
+
+    <script>
+        // ✅ Firebase Configuration
+        const firebaseConfig = {
+            apiKey: "AIzaSyA-I6loz2s6LcbioRlhVrhRpeaFZVPHOLA",
+            authDomain: "smart-bottle-data.firebaseapp.com",
+            databaseURL: "https://smart-bottle-data-default-rtdb.firebaseio.com",
+            projectId: "smart-bottle-data",
+            storageBucket: "smart-bottle-data.firebasestorage.app",
+            messagingSenderId: "708936813438",
+            appId: "1:708936813438:web:459941410ae67628b1812f",
+            measurementId: "G-NHG5JMYVGW"
+        };
+
+        // ✅ Initialize Firebase
+        firebase.initializeApp(firebaseConfig);
+        const database = firebase.database();
+
+        // ✅ Initialize Chart.js
+        const ctx = document.getElementById('myChart').getContext('2d');
+        const myChart = new Chart(ctx, {
+            type: 'bar',
+            data: { labels: [], datasets: [{ label: 'Daily Water Consumption (ml)', data: [], backgroundColor: '#4F9DDE' }] },
+            options: { responsive: true, scales: { x: { ticks: { color: "#333" } }, y: { ticks: { color: "#333" } } } }
+        });
+
+        function fetchMonthlyData() {
+            const monthInput = document.getElementById('monthPicker').value;
+            const liquidTypeFilter = document.getElementById('liquidType').value;
+
+            if (!monthInput) {
+                alert("⚠️ Please select a month.");
+                return;
+            }
+
+            const [year, month] = monthInput.split("-");
+            const dataRef = database.ref(`sensors/${year}/${month}`);
+
+            dataRef.once('value', (snapshot) => {
+                const data = snapshot.val();
+                
+                if (!data) {
+                    alert("⚠️ No data found for the selected month.");
+                    return;
+                }
+
+                let dailyTotals = {};
+                Object.keys(data).forEach(day => {
+                    let total = 0;
+                    Object.keys(data[day]).forEach(timestamp => {
+                        const entry = data[day][timestamp];
+                        if (liquidTypeFilter === "All" || entry.liquidType === liquidTypeFilter) {
+                            total += entry.flowRate;
+                        }
+                    });
+                    dailyTotals[day] = total;
+                });
+
+                const labels = Object.keys(dailyTotals);
+                const values = Object.values(dailyTotals);
+
+                if (labels.length === 0) {
+                    alert("⚠️ No matching data found.");
+                    return;
+                }
+
+                // Update chart
+                myChart.data.labels = labels;
+                myChart.data.datasets[0].data = values;
+                myChart.update();
+
+                gsap.fromTo("#myChart", { scale: 0.8, opacity: 0 }, { scale: 1, opacity: 1, duration: 0.6 });
+            });
+        }
+
+        // ✅ Page Load Animations
+        gsap.to(".fade-in", { opacity: 1, y: 0, duration: 1, stagger: 0.3 });
+    </script>
+
+</body>
+</html>
